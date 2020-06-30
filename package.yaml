@@ -1,0 +1,83 @@
+name:                bank-simulation
+version:             0.1.0.0
+description:         This is bank simulation code test
+homepage:            https://github.com/jproyo/bank-simulation#readme
+license:             BSD3
+author:              Juan Pablo Royo Sales
+maintainer:          juanpablo.royo@gmail.com
+copyright:           2020 Juan Pablo Royo Sales
+category:            Simulation
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - protolude
+
+default-extensions:
+  - BangPatterns
+  - ConstraintKinds
+  - DataKinds
+  - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
+  - DeriveGeneric
+  - DeriveLift
+  - DeriveAnyClass
+  - DerivingStrategies
+  - DerivingVia
+  - EmptyCase
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GADTs
+  - LambdaCase
+  - MultiParamTypeClasses
+  - MultiWayIf
+  - NoImplicitPrelude
+  - OverloadedStrings
+  - PackageImports
+  - PartialTypeSignatures
+  - Rank2Types
+  - RankNTypes
+  - RecordWildCards
+  - RecordWildCards
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TemplateHaskell
+  - TupleSections
+  - TypeApplications
+  - TypeOperators
+  - TypeFamilies
+
+ghc-options:
+  - -O3
+  - -Wall
+  - -Werror
+  - -fno-warn-partial-type-signatures
+  - -fconstraint-solver-iterations=0
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  - -Wno-unused-top-binds
+  - -fno-warn-deprecations # allow undefined
+  - -fno-warn-orphans
+  - -optP-Wno-nonportable-include-path
+
+library:
+  source-dirs: src
+
+  dependencies:
+    - unordered-containers
+
+executables:
+  bank-simulation:
+    source-dirs: app
+    main: Main.hs
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - bank-simulation
+

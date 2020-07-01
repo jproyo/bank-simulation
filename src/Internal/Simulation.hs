@@ -108,7 +108,7 @@ runSimulation =
     .   either identity identity
     .   foldM process initialSimState
     .   zipWithDef [1 ..]
-    .   map (\(e, _, _) -> e)
+    .   map (flip (^.) _1)
     .   generateEvents
 
 initialSimState :: SimState
@@ -147,14 +147,22 @@ process :: SimState -> (Integer, Maybe Entity) -> Either SimState SimState
 process s (currTime, Nothing) | currTime > s ^. maxTime = Left s
                               | otherwise = s & currentTime .~ currTime & Right
 process s (currTime, Just e)
-  | currTime > s ^. maxTime
-  = Left s
+  | currTime > s ^. maxTime = Left s
   | otherwise
-  = let updateTime    = currentTime .~ currTime
-        pushEntity    = servers %~ (queueEntity e)
-        processServer = servers %~ runServer (s ^. currentTime)
-        customers     = solution . customerAmount %~ (+ 1)
-    in  s & updateTime & pushEntity & processServer & customers & Right
+  = let
+      updateTime     = currentTime .~ currTime
+      pushEntity     = servers %~ (queueEntity e)
+      processServer  = servers %~ runServer (s ^. currentTime)
+      countCustomers = solution . customerAmount %~ (+ 1)
+      queueS         = servers . inQueue . L.to (fromIntegral . Q.size)
+      queueL      s' = s' & solution . queueLengthSum %~ (+ (s'^.queueS))
+      queueM      s' = s' & solution . maxQueueLength %~ (max (s'^.queueS))
+      waitS          = s ^. servers ^. inProcess . L.to (fmap _waitDecr) ^. non 0
+      waitC          = solution . waitingAmountSum %~ (+ waitS)
+      waitM          = solution . maxWaitingTime %~ (max waitS)
+      updateSolution = countCustomers . queueL . queueM . waitC . waitM
+    in
+      s & updateTime & pushEntity & processServer & updateSolution & Right
 
 
 --newtype Simuation a = Simulation { runSimulation :: [Entity a] }

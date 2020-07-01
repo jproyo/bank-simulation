@@ -30,6 +30,7 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
   - GADTs
   - LambdaCase
   - MultiParamTypeClasses
@@ -68,7 +69,14 @@ library:
   source-dirs: src
 
   dependencies:
-    - unordered-containers
+    - data-default
+    - microlens
+    - microlens-th
+    - pqueue
+    - random
+
+  exposed-modules:
+    - Simulation
 
 executables:
   bank-simulation:

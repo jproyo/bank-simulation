@@ -1,125 +1,42 @@
-module Internal.Simulation
-  ( executeSimulation
-  , SimSystem
-  , averageWaitingTime
-  , averageQueueSize
-  , maxWaitTime
-  , maxQueueSize
-  , diffWaitingTime
-  , diffQueueSize
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-|
+Module      : Simulation.Internal
+Description : This module contains the definitions and combinators of core Simulation Library. The Simulation Library is a generic Event Scheduling model where we have a System, Servers in the System, Queues, Arrivals, etc.
+Copyright   : (c) Juan Pablo Royo Sales, 2020
+License     : GPL-3
+Maintainer  : juanpablo.royo@gmail.com
+Stability   : educational
+Portability : POSIX
+
+-}
+module Simulation.Internal
+  ( simulation
+  , executeSimulation
+  , T.SimSystem
+  , T.averageWaitingTime
+  , T.averageQueueSize
+  , T.maxWaitTime
+  , T.maxQueueSize
+  , T.diffWaitingTime
+  , T.diffQueueSize
   )
 where
 
 import           Data.Default
 import qualified Data.PQueue.Min               as Q
 import           Data.Statistics.Distributions
-import           GHC.Show
-import           Internal.Config
 import           Lens.Micro                    as L
-import           Lens.Micro.TH
 import           Protolude                     as P
+import           Simulation.Config
+import           Simulation.Types              as T
 import           System.Random
 
 
-data Server = Server
-  { _inQueue   :: Q.MinQueue Entity
-  , _inProcess :: Maybe Entity
-  }
-
-instance Default Server where
-  def = Server Q.empty Nothing
-
-instance Show Server where
-  show Server {..} =
-    "In Queue: "
-      <> (P.show $ Q.size _inQueue)
-      <> " - In Process: "
-      <> P.show _inProcess
-
-data Entity = Entity
-  { _arrival   :: Integer
-  , _execTime  :: Integer
-  , _serveTime :: Integer
-  } deriving Show
-
-data SimSystem = SimSystem
-  { _currentTime    :: Integer
-  , _servers        :: Server
-  , _entitiesServed :: [Entity]
-  , _stats          :: SimStats
-  } deriving (Generic, Default, Show)
-
-data SimStats = SimStats
-  { _customerAmount   :: Integer
-  , _waitingAmountSum :: Integer
-  , _maxWaitingTime   :: Integer
-  , _countWaiting     :: Integer
-  , _queueLengthSum   :: Integer
-  , _maxQueueLength   :: Integer
-  , _countQueueNEmpty :: Integer
-  } deriving (Generic, Default, Show)
-
-averageWaitingTime :: SimSystem -> Integer
-averageWaitingTime SimSystem {..}
-  | _countWaiting _stats > 0 = _waitingAmountSum _stats `div` _countWaiting _stats
-  | otherwise = 0
-
-maxWaitTime :: SimSystem -> Integer
-maxWaitTime = _maxWaitingTime . _stats
-
-diffWaitingTime :: SimSystem -> Integer
-diffWaitingTime s = abs ((averageWaitingTime s) - (_maxWaitingTime $ _stats s))
-
-averageQueueSize :: SimSystem -> Integer
-averageQueueSize SimSystem {..}
-  | _countQueueNEmpty _stats > 0 = _queueLengthSum _stats `div` _countQueueNEmpty _stats
-  | otherwise = 0
-
-
-maxQueueSize :: SimSystem -> Integer
-maxQueueSize = _maxQueueLength . _stats
-
-diffQueueSize :: SimSystem -> Integer
-diffQueueSize s = abs ((averageQueueSize s) - (_maxQueueLength $ _stats s))
-
-makeLenses ''Entity
-makeLenses ''SimStats
-makeLenses ''SimSystem
-makeLenses ''Server
-
-instance Eq Entity where
-  entA == entB = entA ^. arrival == entB ^. arrival
-
-instance Ord Entity where
-  entA <= entB = entA ^. arrival <= entB ^. arrival
+class Monad m => EventGenerator m where
+  generateEvents :: RandomGen g => g -> m [Entity]
 
 type WithEventGenerator e b g
   = (TimeSeriesGen e Integer, TimeServiceGen b Integer, RandomGen g)
-
-generateEvents :: WithEventGenerator e b g => e -> b -> g -> [Entity]
-generateEvents serie service g = map (flip (^.) _1)
-  $ scanl acumm firstItem ([1 ..] :: [Integer])
- where
-  firstItem =
-    let (arrival', g' ) = genArrival serie g
-        (waiting', g'') = genServiceTime service g
-    in  (Entity arrival' waiting' 0, g', g'')
-  acumm (Entity {..}, g', g'') _ =
-    let (newArrival', h ) = genArrival serie g'
-        (newWaiting , h') = genServiceTime service g''
-        newArrival        = _arrival + newArrival'
-    in  (Entity newArrival newWaiting 0, h, h')
-
-
-zipWithDef :: [Integer] -> [Entity] -> [(Integer, Maybe Entity)]
-zipWithDef [] [] = []
-zipWithDef [] _  = []
-zipWithDef _  [] = []
-zipWithDef (x : xs) el@(e : es)
-  | x == e ^. arrival = (x, Just e) : zipWithDef xs es
-  | otherwise         = (x, Nothing) : zipWithDef xs el
-
-
 
 newtype Simulation a = Simulation { runSimulation :: StateT SimSystem (ReaderT SimConfig IO) a }
   deriving newtype ( Functor
@@ -132,6 +49,33 @@ newtype Simulation a = Simulation { runSimulation :: StateT SimSystem (ReaderT S
 
 type WithSimulation m
   = (MonadIO m, MonadState SimSystem m, MonadReader SimConfig m)
+
+instance EventGenerator Simulation where
+  generateEvents g = do
+    serie   <- _expDistribution <$> ask
+    service <- _betaDistribution <$> ask
+    return . map (flip (^.) _1) $ scanl (acumm serie service)
+                                        (firstItem serie service)
+                                        ([1 ..] :: [Integer])
+   where
+    firstItem serie service =
+      let (arrival', g' ) = genArrival serie g
+          (waiting', g'') = genServiceTime service g
+      in  (Entity arrival' waiting' 0, g', g'')
+    acumm serie service (Entity {..}, g', g'') _ =
+      let (newArrival', h ) = genArrival serie g'
+          (newWaiting , h') = genServiceTime service g''
+          newArrival        = _arrival + newArrival'
+      in  (Entity newArrival newWaiting 0, h, h')
+
+
+zipWithDef :: [Integer] -> [Entity] -> [(Integer, Maybe Entity)]
+zipWithDef [] [] = []
+zipWithDef [] _  = []
+zipWithDef _  [] = []
+zipWithDef (x : xs) el@(e : es)
+  | x == e ^. arrival = (x, Just e) : zipWithDef xs es
+  | otherwise         = (x, Nothing) : zipWithDef xs el
 
 
 queueEntity :: Entity -> Server -> Server
@@ -198,24 +142,12 @@ runServerCycle currTime s =
   in  s & updateTime & runServer & updateStats
 
 -- Run program
-
-
 executeSimulation :: SimConfig -> IO SimSystem
 executeSimulation =
   fmap snd . runReaderT (runStateT (runSimulation simulation) initialSimState)
 
-simulation :: Simulation ()
-simulation = Simulation run'
-
-run' :: WithSimulation m => m ()
-run' = do
-  betaDist <- _betaDistribution <$> ask
-  expDist  <- _expDistribution <$> ask
-  liftIO newStdGen
-    >>= processEvents
-    .   zipWithDef [1 ..]
-    .   generateEvents expDist betaDist
-
+simulation :: (EventGenerator m, WithSimulation m) => m ()
+simulation = liftIO newStdGen >>= generateEvents >>= processEvents . zipWithDef [1 ..]
 
 processEvents :: WithSimulation m => [(Integer, Maybe Entity)] -> m ()
 processEvents [] = pure ()

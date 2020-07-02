@@ -1,10 +1,19 @@
+{-|
+Module      : Data.Statistics.Distributions
+Description : This module contains config definition for the statistics distributions to generate events arrivals and service times
+Copyright   : (c) Juan Pablo Royo Sales, 2020
+License     : GPL-3
+Maintainer  : juanpablo.royo@gmail.com
+Stability   : educational
+Portability : POSIX
+-}
 module Data.Statistics.Distributions where
 
+import           Data.Aeson
 import           Protolude
 import           System.Random
-import Data.Aeson
 
-class Num a => TimeSeriesGen t a | t -> a where
+class Num a => TimeSeriesGen t a | t -> a where
   genArrival :: RandomGen g => t -> g -> (a, g)
 
 class Num a => TimeServiceGen t a | t -> a where
@@ -16,7 +25,8 @@ data Beta = Beta
   } deriving Show
 
 instance FromJSON Beta where
-  parseJSON = withObject "beta" $ \obj -> Beta <$> obj .: "alpha" <*> obj .: "beta"
+  parseJSON =
+    withObject "beta" $ \obj -> Beta <$> obj .: "alpha" <*> obj .: "beta"
 
 newtype Exponential = Exponential { _alphaE :: Integer }
   deriving Show
@@ -39,6 +49,5 @@ instance TimeServiceGen Beta Integer where
           )
         , g'
         )
-
 
 

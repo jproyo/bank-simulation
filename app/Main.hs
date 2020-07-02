@@ -1,12 +1,22 @@
+{-|
+Module      : Main
+Description : This module is an instantiation of the Simulation Library with the particular problem of trhe Bank Simulation
+Copyright   : (c) Juan Pablo Royo Sales, 2020
+License     : GPL-3
+Maintainer  : juanpablo.royo@gmail.com
+Stability   : educational
+Portability : POSIX
+-}
 module Main where
 
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.Yaml.Config
 import           GHC.Show
-import           Options.Applicative as Opt
+import           Lens.Micro
+import           Options.Applicative           as Opt
 import           Options.Generic
-import           Protolude           as P
+import           Protolude                     as P
 import           Simulation
 
 data Customer = Yellow
@@ -47,15 +57,23 @@ instance ParseField ConfigSelection
 instance ParseRecord ConfigSelection
 
 instance Show ConfigSelection where
-  show ConfigSelection{..} =
-    "\n------- BANK CONFIG SELECTION ------ " <>
-    "\nCustomer Type: " <> P.show custType <>
-    "\nShow Average Wait Time: " <> P.show showAvgWait <>
-    "\nShow Average Queue Length: " <> P.show showAvgQueue <>
-    "\nShow Maximum Wait Time: " <> P.show showMaxWait <>
-    "\nShow Maximum Queue Length: " <> P.show showMaxQueue <>
-    "\nShow Diff between Average and Maximum: " <> P.show showDiff <>
-    "\n------------------------------------ "
+  show ConfigSelection {..} =
+    "\n------- BANK CONFIG SELECTION ------ "
+      <> "\nCustomer Type: "
+      <> P.show custType
+      <> "\nShow Average Wait Time: "
+      <> P.show showAvgWait
+      <> "\nShow Average Queue Length: "
+      <> P.show showAvgQueue
+      <> "\nShow Maximum Wait Time: "
+      <> P.show showMaxWait
+      <> "\nShow Maximum Queue Length: "
+      <> P.show showMaxQueue
+      <> "\nShow Diff between Average and Maximum: "
+      <> P.show showDiff
+      <> "\nShow All: "
+      <> P.show showAll
+      <> "\n------------------------------------ "
 
 toCustomerConfig :: Customer -> Object -> Data.Aeson.Types.Parser CustomerConfig
 toCustomerConfig cust =
@@ -74,26 +92,29 @@ readFileConf :: FilePath -> IO ConfigSim
 readFileConf file = loadYamlSettings [file] [] useEnv
 
 fromCustTypeToBeta :: CustomerConfig -> Beta
-fromCustTypeToBeta CustomerConfig{..} = Beta alphaVal betaVal
+fromCustTypeToBeta CustomerConfig {..} = Beta alphaVal betaVal
 
 mapToLibConf :: ConfigSelection -> ConfigSim -> SimConfig
-mapToLibConf ConfigSelection{..} Config {..} =
+mapToLibConf ConfigSelection {..} Config {..} =
   let betaDist = case custType of
-                      Yellow -> fromCustTypeToBeta yellow
-                      Red    -> fromCustTypeToBeta red
-                      Blue   -> fromCustTypeToBeta blue
-   in SimConfig maxRunTime betaDist (Exponential alphaExpDist)
+        Yellow -> fromCustTypeToBeta yellow
+        Red    -> fromCustTypeToBeta red
+        Blue   -> fromCustTypeToBeta blue
+  in  SimConfig maxRunTime betaDist (Exponential alphaExpDist)
 
 allConfigs :: [(ConfigSelection -> Bool, Text, SimSystem -> Integer)]
-allConfigs = [(showAvgWait, "\nAverage Waiting Time: ", averageWaitingTime)
-            , (showAvgQueue, "\nAverage Queue Size: ", averageQueueSize)
-            , (showMaxWait, "\nMax Waiting Time: ",  maxWaitTime)
-            , (showMaxQueue, "\nMax Queue Size: ",  maxQueueSize)
-            , (showDiff, "\nDiff Waiting Time: ", diffWaitingTime)]
+allConfigs =
+  [ (showAvgWait , "\nAverage Waiting Time: ", averageWaitingTime)
+  , (showAvgQueue, "\nAverage Queue Size: "  , averageQueueSize)
+  , (showMaxWait , "\nMax Waiting Time: "    , maxWaitTime)
+  , (showMaxQueue, "\nMax Queue Size: "      , maxQueueSize)
+  , (showDiff    , "\nDiff Waiting Time: "   , diffWaitingTime)
+  ]
 
 showResults :: ConfigSelection -> SimSystem -> IO ()
 showResults conf sis = do
-  configs <- filterM (\(b, _, _) -> pure $ showAll conf || b conf) allConfigs
+  configs <- filterM (pure . (showAll conf ||) . flip ($) conf . flip (^.) _1)
+                     allConfigs
   putText "\n--------- BANK SIMULATION RESULT ----------"
   putText $ foldMap (\(_, t, f) -> t <> (P.show $ f sis)) configs
   putText "\n-------------------------------------------"

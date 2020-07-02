@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bb8520e95af0f4133c697cabf40994498098f5e254d68c911c9bc89678c49538
+-- hash: 1db75871e3ff3d124e1f7e839811a124e26f89f18e0a8ac58dfae1be535ad662
 
 name:           bank-simulation
 version:        0.1.0.0
@@ -25,8 +25,9 @@ library
       Simulation
   other-modules:
       Data.Statistics.Distributions
-      Internal.Config
-      Internal.Simulation
+      Simulation.Config
+      Simulation.Internal
+      Simulation.Types
       Paths_bank_simulation
   hs-source-dirs:
       src
@@ -55,6 +56,7 @@ executable bank-simulation
       aeson
     , bank-simulation
     , base >=4.7 && <5
+    , microlens
     , optparse-applicative
     , optparse-generic
     , protolude

@@ -1,4 +1,13 @@
-module Internal.Config where
+{-|
+Module      : Simulation.Config
+Description : This module contains config definition for the simulation system
+Copyright   : (c) Juan Pablo Royo Sales, 2020
+License     : GPL-3
+Maintainer  : juanpablo.royo@gmail.com
+Stability   : educational
+Portability : POSIX
+-}
+module Simulation.Config where
 
 import           Data.Statistics.Distributions
 import           GHC.Show

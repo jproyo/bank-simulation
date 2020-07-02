@@ -1,9 +1,19 @@
+{-|
+Module      : Simulation
+Description : This module is the exporter of internal details
+Copyright   : (c) Juan Pablo Royo Sales, 2020
+License     : GPL-3
+Maintainer  : juanpablo.royo@gmail.com
+Stability   : educational
+Portability : POSIX
+-}
 module Simulation
-  ( module Internal.Simulation
-  , module Internal.Config
-  , module Data.Statistics.Distributions
-  ) where
+  ( module Stats
+  , module C
+  , module I
+  )
+where
 
-import           Data.Statistics.Distributions
-import           Internal.Config
-import           Internal.Simulation
+import           Data.Statistics.Distributions as Stats
+import           Simulation.Config             as C
+import           Simulation.Internal           as I

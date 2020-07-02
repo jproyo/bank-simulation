@@ -90,6 +90,7 @@ executables:
     dependencies:
     - aeson
     - bank-simulation
+    - microlens
     - optparse-applicative
     - optparse-generic
     - yaml

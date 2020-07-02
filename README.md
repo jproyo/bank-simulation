@@ -13,6 +13,15 @@ As in any other software or solution there are a couple of assumptions to be mad
 4. **Modularity**: The solution is divided in two parts, one with the `simulation` library that is used by the `bank-simulation` application. In this sense the solution can simulate any problem, **not only** the **Bank - Teller - Queue** problem.
 5. **Servers**: Servers represents the **resources** in the system that has the capability to provide some service to the **Entities**. For a matter of time I have only implemented a Simulation System with 1 SERVER but it can be easily be extended to multiple.
 
+# Time Series Generation
+For generating the events an exponential distribution with parameter ![formula](https://render.githubusercontent.com/render/math?math=\frac{1}{\alpha}) was provided with the following form:
+
+![formula](https://render.githubusercontent.com/render/math?math=F(t)=1-e^{-\frac{t}{\alpha}})
+
+In order to generate with Random Values based in an Uniform distribution the time *![formula](https://render.githubusercontent.com/render/math?math=t)* parameter with the inverse it can be obtained and sum to the previous generated event.
+
+![formula](https://render.githubusercontent.com/render/math?math=t=-\alpha*\ln(1-r)) where *r* is the random uniform distribution generated between *0.0* and *1.0*
+
 # Configuration
 
 There are 2 kind of configuration in this project:

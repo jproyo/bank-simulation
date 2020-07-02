@@ -11,6 +11,7 @@ Portability : POSIX
 -}
 module Simulation.Internal
   ( simulation
+  , EventGenerator(..)
   , executeSimulation
   , T.SimSystem
   , T.averageWaitingTime

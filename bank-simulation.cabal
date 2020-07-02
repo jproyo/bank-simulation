@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1db75871e3ff3d124e1f7e839811a124e26f89f18e0a8ac58dfae1be535ad662
+-- hash: 99f09ef63f0299e60330ae4648f47ceb997117019994d1e4dea33712ed674556
 
 name:           bank-simulation
 version:        0.1.0.0
@@ -61,4 +61,34 @@ executable bank-simulation
     , optparse-generic
     , protolude
     , yaml
+  default-language: Haskell2010
+
+test-suite components-tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Simulation.InternalSpec
+      Data.Statistics.Distributions
+      Simulation
+      Simulation.Config
+      Simulation.Internal
+      Simulation.Types
+      Paths_bank_simulation
+  hs-source-dirs:
+      test
+      src
+  default-extensions: BangPatterns ConstraintKinds DataKinds DeriveFunctor DeriveFoldable DeriveTraversable DeriveGeneric DeriveLift DeriveAnyClass DerivingStrategies DerivingVia EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GeneralizedNewtypeDeriving GADTs LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PackageImports PartialTypeSignatures Rank2Types RankNTypes RecordWildCards RecordWildCards ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeOperators TypeFamilies
+  ghc-options: -O3 -Wall -Werror -fno-warn-partial-type-signatures -fconstraint-solver-iterations=0 -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-unused-top-binds -fno-warn-deprecations -fno-warn-orphans -optP-Wno-nonportable-include-path -threaded -O2 -rtsopts -with-rtsopts=-N -Wno-unused-local-binds -Wno-unused-matches
+  build-depends:
+      QuickCheck
+    , aeson
+    , base >=4.7 && <5
+    , data-default
+    , hspec ==2.*
+    , hspec-expectations
+    , microlens
+    , microlens-th
+    , pqueue
+    , protolude
+    , random
   default-language: Haskell2010

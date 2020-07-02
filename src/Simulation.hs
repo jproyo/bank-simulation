@@ -11,9 +11,11 @@ module Simulation
   ( module Stats
   , module C
   , module I
+  , module T
   )
 where
 
 import           Data.Statistics.Distributions as Stats
 import           Simulation.Config             as C
 import           Simulation.Internal           as I
+import           Simulation.Types              as T

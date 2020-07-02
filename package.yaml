@@ -72,10 +72,8 @@ library:
     - data-default
     - microlens
     - microlens-th
-    - MonadRandom
     - pqueue
     - random
-    - vector
 
   exposed-modules:
     - Simulation

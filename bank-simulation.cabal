@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9023a7be45712f67d7a862d03d5246323966ead007637beee6378bf25a0f6a15
+-- hash: 484750975ba7b3adc20be1332cfcf2389a015345b96c7b009c4abb4e46eef988
 
 name:           bank-simulation
 version:        0.1.0.0
@@ -24,6 +24,7 @@ library
   exposed-modules:
       Simulation
   other-modules:
+      Config
       Data.Statistics.Distributions
       Internal.Simulation
       Paths_bank_simulation
@@ -32,15 +33,13 @@ library
   default-extensions: BangPatterns ConstraintKinds DataKinds DeriveFunctor DeriveFoldable DeriveTraversable DeriveGeneric DeriveLift DeriveAnyClass DerivingStrategies DerivingVia EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GeneralizedNewtypeDeriving GADTs LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PackageImports PartialTypeSignatures Rank2Types RankNTypes RecordWildCards RecordWildCards ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeOperators TypeFamilies
   ghc-options: -O3 -Wall -Werror -fno-warn-partial-type-signatures -fconstraint-solver-iterations=0 -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-unused-top-binds -fno-warn-deprecations -fno-warn-orphans -optP-Wno-nonportable-include-path
   build-depends:
-      MonadRandom
-    , base >=4.7 && <5
+      base >=4.7 && <5
     , data-default
     , microlens
     , microlens-th
     , pqueue
     , protolude
     , random
-    , vector
   default-language: Haskell2010
 
 executable bank-simulation

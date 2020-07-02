@@ -1,29 +1,23 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
 module Internal.Simulation where
 
+import           Config
 import           Data.Default
-import qualified Data.PQueue.Min as Q
+import qualified Data.PQueue.Min               as Q
+import           Data.Statistics.Distributions
 import           GHC.Show
-import           Lens.Micro      as L
+import           Lens.Micro                    as L
 import           Lens.Micro.TH
-import           Protolude       as P
+import           Protolude                     as P
 import           System.Random
 
-
-data Algo = Algo
-
-class Num a => TimeGen t a where
-  type Unit a :: *
-  time :: t -> Unit a
-
-instance TimeGen Algo Integer where
-  type Unit Integer = Integer
-  time Algo = 1
 
 data Server = Server
   { _inQueue   :: Q.MinQueue Entity
   , _inProcess :: Maybe Entity
   }
+
+instance Default Server where
+  def = Server Q.empty Nothing
 
 instance Show Server where
   show Server {..} =
@@ -38,14 +32,12 @@ data Entity = Entity
   , _serveTime :: Integer
   } deriving Show
 
-
 data SimSystem = SimSystem
   { _currentTime    :: Integer
-  , _maxTime        :: Integer
   , _servers        :: Server
   , _entitiesServed :: [Entity]
   , _stats          :: SimStats
-  } deriving Show
+  } deriving (Generic, Default, Show)
 
 data SimStats = SimStats
   { _customerAmount   :: Integer
@@ -54,6 +46,7 @@ data SimStats = SimStats
   , _countWaiting     :: Integer
   , _queueLengthSum   :: Integer
   , _maxQueueLength   :: Integer
+  , _countQueueNEmpty :: Integer
   } deriving (Generic, Default, Show)
 
 makeLenses ''Entity
@@ -67,30 +60,16 @@ instance Eq Entity where
 instance Ord Entity where
   entA <= entB = entA ^. arrival <= entB ^. arrival
 
-arrivalTime :: RandomGen g => g -> (Integer, g)
-arrivalTime g =
-  let (v, g') = randomR @Float (0.0, 1.0) g
-  in  (round ((-100) * log (1-v)), g')
-
-
-waitingTime :: RandomGen g => g -> (Integer, g)
-waitingTime g =
-  let (v, g') = randomR @Float (0.0, 1.0) g
-  in  ( round
-        (200 * (v ^ ((5 - 1) :: Integer)) * ((1 - v) ^ ((1 - 1) :: Integer)))
-      , g'
-      )
-
-generateEvents :: RandomGen g => g -> [(Entity, g, g)]
-generateEvents g = scanl acumm firstItem ([1 ..] :: [Integer])
+generateEvents :: (TimeSeriesGen e Integer, TimeServiceGen b Integer, RandomGen g) => e -> b -> g -> [(Entity, g, g)]
+generateEvents serie service g = scanl acumm firstItem ([1 ..] :: [Integer])
  where
   firstItem =
-    let (arrival', g' ) = arrivalTime g
-        (waiting', g'') = waitingTime g
+    let (arrival', g' ) = genArrival serie g
+        (waiting', g'') = genServiceTime service g
     in  (Entity arrival' waiting' 0, g', g'')
   acumm (Entity {..}, g', g'') _ =
-    let (newArrival', h ) = arrivalTime g'
-        (newWaiting , h') = waitingTime g''
+    let (newArrival', h ) = genArrival serie g'
+        (newWaiting , h') = genServiceTime service g''
         newArrival        = _arrival + newArrival'
     in  (Entity newArrival newWaiting 0, h, h')
 
@@ -103,32 +82,19 @@ zipWithDef (x : xs) el@(e : es)
   | x == e ^. arrival = (x, Just e) : zipWithDef xs es
   | otherwise         = (x, Nothing) : zipWithDef xs el
 
-runSimulation :: IO SimSystem
-runSimulation =
-  newStdGen
-    >>= fmap snd
-    .   flip runStateT initialSimState
-    .   processEvents
-    .   zipWithDef [1 ..]
-    .   map (flip (^.) _1)
-    .   generateEvents
 
 
-processEvents :: (MonadIO m, MonadState SimSystem m) => [(Integer, Maybe Entity)] -> m ()
-processEvents []       = pure ()
-processEvents (x : xs) = whenM (continue $ x^._1) $
-                            processEventCycle x >> processEvents xs
+newtype Simulation a = Simulation { runSimulation :: StateT SimSystem (ReaderT SimConfig IO) a }
+  deriving newtype ( Functor
+                   , Applicative
+                   , Monad
+                   , MonadState SimSystem
+                   , MonadReader SimConfig
+                   , MonadIO
+                   )
 
-continue :: MonadState SimSystem m => Integer -> m Bool
-continue currTime = get >>= pure . (currTime<=) . flip (^.) maxTime
+type WithSimulation m = (MonadIO m, MonadState SimSystem m, MonadReader SimConfig m)
 
-initialSimState :: SimSystem
-initialSimState = SimSystem { _currentTime = 0
-                            , _servers     = Server Q.empty Nothing
-                            , _stats       = def
-                            , _entitiesServed = []
-                            , _maxTime     = 60 * 60 * 8 -- Time in Seconds for 8 hours work
-                            }
 
 queueEntity :: Entity -> Server -> Server
 queueEntity e s = s & inQueue %~ Q.insert e
@@ -158,7 +124,7 @@ lookupQueue s =
           let getFromQueue = servers . inQueue %~ Q.deleteMin
               updateEntity = e & serveTime .~ s^.currentTime
               putInServer  = servers . inProcess .~ Just updateEntity
-           in s & getFromQueue & putInServer -- & flip updateServiceTime updateEntity
+           in s & getFromQueue & putInServer
         else s
   in  maybe s checkTime lookupQueue'
 
@@ -168,7 +134,7 @@ runServer s = let serviceTime = s ^. servers . inProcess . L.to (maybe s (update
                   updateQueue s' = s' ^. servers . inProcess . L.to (maybe (lookupQueue s') (const s'))
                in serviceTime & updateQueue
 
-
+-- Run an Event cycle of Event Time Unit
 processEventCycle :: MonadState SimSystem m => (Integer, Maybe Entity) -> m ()
 processEventCycle (currTime, maybeEntity) = modify $ \simState ->
   case maybeEntity of
@@ -181,11 +147,41 @@ processEventCycle (currTime, maybeEntity) = modify $ \simState ->
 
 runServerCycle :: Integer -> SimSystem -> SimSystem
 runServerCycle currTime s =
-  let updateTime    = currentTime .~ currTime
-      queueS        = servers . inQueue . L.to (fromIntegral . Q.size)
-      queueL s' = s' & (stats. queueLengthSum) +~ (s' ^. queueS)
-      queueM s' = s' & stats . maxQueueLength %~ (max (s' ^. queueS))
-      updateStats = queueL . queueM
+  let updateTime = currentTime .~ currTime
+      queueS     = servers . inQueue . L.to (fromIntegral . Q.size)
+      queueL s'  = s' & (stats.queueLengthSum) +~ (s' ^. queueS)
+      queueM s'  = s' & stats . maxQueueLength %~ (max (s' ^. queueS))
+      queueC s'  = s' & (stats . countQueueNEmpty) +~ (min 1 (s'^.queueS))
+      updateStats = queueL . queueM . queueC
    in s & updateTime & runServer & updateStats
 
+-- Run program
 
+
+executeSimulation :: SimConfig -> IO SimSystem
+executeSimulation = fmap snd . runReaderT (runStateT (runSimulation simulation) initialSimState)
+
+simulation :: Simulation ()
+simulation = Simulation run'
+
+run' :: WithSimulation m => m ()
+run' = do
+  betaDist <- _betaDistribution <$> ask
+  expDist  <- _expDistribution <$> ask
+  liftIO newStdGen
+    >>= processEvents
+    .   zipWithDef [1 ..]
+    .   map (flip (^.) _1)
+    .   generateEvents expDist betaDist
+
+
+processEvents :: WithSimulation m => [(Integer, Maybe Entity)] -> m ()
+processEvents []       = pure ()
+processEvents (x : xs) = whenM (continue $ x^._1) $
+                            processEventCycle x >> processEvents xs
+
+continue :: WithSimulation m => Integer -> m Bool
+continue currTime =  _maxRunningTime <$> ask >>= pure . (currTime<=)
+
+initialSimState :: SimSystem
+initialSimState = def

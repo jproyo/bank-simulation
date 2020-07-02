@@ -33,30 +33,32 @@ instance Show Server where
       <> P.show _inProcess
 
 data Entity = Entity
-  { _arrival  :: Integer
-  , _waiting  :: Integer
-  , _waitDecr :: Integer
+  { _arrival   :: Integer
+  , _execTime  :: Integer
+  , _serveTime :: Integer
   } deriving Show
 
 
-data SimState = SimState
-  { _currentTime :: Integer
-  , _maxTime     :: Integer
-  , _servers     :: Server
-  , _solution    :: SolutionOutput
-  }
+data SimSystem = SimSystem
+  { _currentTime    :: Integer
+  , _maxTime        :: Integer
+  , _servers        :: Server
+  , _entitiesServed :: [Entity]
+  , _stats          :: SimStats
+  } deriving Show
 
-data SolutionOutput = SolutionOutput
+data SimStats = SimStats
   { _customerAmount   :: Integer
   , _waitingAmountSum :: Integer
   , _maxWaitingTime   :: Integer
+  , _countWaiting     :: Integer
   , _queueLengthSum   :: Integer
   , _maxQueueLength   :: Integer
   } deriving (Generic, Default, Show)
 
 makeLenses ''Entity
-makeLenses ''SolutionOutput
-makeLenses ''SimState
+makeLenses ''SimStats
+makeLenses ''SimSystem
 makeLenses ''Server
 
 instance Eq Entity where
@@ -68,14 +70,14 @@ instance Ord Entity where
 arrivalTime :: RandomGen g => g -> (Integer, g)
 arrivalTime g =
   let (v, g') = randomR @Float (0.0, 1.0) g
-  in  (round ((-100) * log (1 - v)), g')
+  in  (round ((-100) * log (1-v)), g')
 
 
 waitingTime :: RandomGen g => g -> (Integer, g)
 waitingTime g =
   let (v, g') = randomR @Float (0.0, 1.0) g
   in  ( round
-        (200 * (v ^ ((2 - 1) :: Integer)) * ((1 - v) ^ ((5 - 1) :: Integer)))
+        (200 * (v ^ ((5 - 1) :: Integer)) * ((1 - v) ^ ((1 - 1) :: Integer)))
       , g'
       )
 
@@ -101,68 +103,89 @@ zipWithDef (x : xs) el@(e : es)
   | x == e ^. arrival = (x, Just e) : zipWithDef xs es
   | otherwise         = (x, Nothing) : zipWithDef xs el
 
-runSimulation :: IO SimState
+runSimulation :: IO SimSystem
 runSimulation =
   newStdGen
-    >>= return
-    .   either identity identity
-    .   foldM process initialSimState
+    >>= fmap snd
+    .   flip runStateT initialSimState
+    .   processEvents
     .   zipWithDef [1 ..]
     .   map (flip (^.) _1)
     .   generateEvents
 
-initialSimState :: SimState
-initialSimState = SimState { _currentTime = 0
-                           , _servers     = Server Q.empty Nothing
-                           , _solution    = def
-                           , _maxTime     = 60 * 60 * 8 -- Time in Seconds for 8 hours work
-                           }
+
+processEvents :: (MonadIO m, MonadState SimSystem m) => [(Integer, Maybe Entity)] -> m ()
+processEvents []       = pure ()
+processEvents (x : xs) = whenM (continue $ x^._1) $
+                            processEventCycle x >> processEvents xs
+
+continue :: MonadState SimSystem m => Integer -> m Bool
+continue currTime = get >>= pure . (currTime<=) . flip (^.) maxTime
+
+initialSimState :: SimSystem
+initialSimState = SimSystem { _currentTime = 0
+                            , _servers     = Server Q.empty Nothing
+                            , _stats       = def
+                            , _entitiesServed = []
+                            , _maxTime     = 60 * 60 * 8 -- Time in Seconds for 8 hours work
+                            }
 
 queueEntity :: Entity -> Server -> Server
 queueEntity e s = s & inQueue %~ Q.insert e
 
+updateWaitingTimes :: Entity -> SimSystem -> SimSystem
+updateWaitingTimes e s = let timeWaited  = e^.serveTime - e^.arrival
+                             waitSumUpdate = (stats.waitingAmountSum) +~ timeWaited
+                             maxWaitUpdate = (stats.maxWaitingTime) %~ (max timeWaited)
+                             countWaitUpdate = (stats.countWaiting) +~ (min 1 timeWaited)
+                        in s & waitSumUpdate & maxWaitUpdate & countWaitUpdate
 
-updateWaiting :: Server -> Entity -> Server
-updateWaiting s e =
-  let newE = if e ^. waiting > 0 then e & waitDecr %~ (+ 1) else e
-  in  if newE ^. waitDecr == newE ^. waiting
-        then s & inProcess .~ Nothing
-        else s & inProcess .~ Just newE
+
+updateServiceTime :: SimSystem -> Entity -> SimSystem
+updateServiceTime s e = if (e^.serveTime + e^.execTime) <= s^.currentTime
+                         then
+                           let leaveServer = servers . inProcess .~ Nothing
+                               addToServed = entitiesServed %~ ((:) e)
+                            in s & leaveServer & addToServed & updateWaitingTimes e
+                         else s
 
 
-lookupQueue :: Integer -> Server -> Server
-lookupQueue currTime s =
-  let lookupQueue' = s ^. inQueue . L.to Q.getMin
-      checkTime e = if currTime >= e ^. arrival
-        then s & inQueue %~ Q.deleteMin & inProcess .~ Just e
-        else s & inProcess .~ Nothing
+lookupQueue :: SimSystem -> SimSystem
+lookupQueue s =
+  let lookupQueue' = s ^. servers ^. inQueue . L.to Q.getMin
+      checkTime e = if s ^. currentTime >= e ^. arrival
+        then
+          let getFromQueue = servers . inQueue %~ Q.deleteMin
+              updateEntity = e & serveTime .~ s^.currentTime
+              putInServer  = servers . inProcess .~ Just updateEntity
+           in s & getFromQueue & putInServer -- & flip updateServiceTime updateEntity
+        else s
   in  maybe s checkTime lookupQueue'
 
 
-runServer :: Integer -> Server -> Server
-runServer c s =
-  s ^. inProcess . L.to (maybe (lookupQueue c s) (updateWaiting s))
-
-process :: SimState -> (Integer, Maybe Entity) -> Either SimState SimState
-process s (currTime, Nothing) | currTime > s ^. maxTime = Left s
-                              | otherwise = s & currentTime .~ currTime & Right
-process s (currTime, Just e)
-  | currTime > s ^. maxTime = Left s
-  | otherwise
-  = let
-      updateTime     = currentTime .~ currTime
-      pushEntity     = servers %~ (queueEntity e)
-      processServer  = servers %~ runServer (s ^. currentTime)
-      countCustomers = solution . customerAmount %~ (+ 1)
-      queueS         = servers . inQueue . L.to (fromIntegral . Q.size)
-      queueL      s' = s' & solution . queueLengthSum %~ (+ (s'^.queueS))
-      queueM      s' = s' & solution . maxQueueLength %~ (max (s'^.queueS))
-      waitS          = s ^. servers ^. inProcess . L.to (fmap _waitDecr) ^. non 0
-      waitC          = solution . waitingAmountSum %~ (+ waitS)
-      waitM          = solution . maxWaitingTime %~ (max waitS)
-      updateSolution = countCustomers . queueL . queueM . waitC . waitM
-    in
-      s & updateTime & pushEntity & processServer & updateSolution & Right
+runServer :: SimSystem -> SimSystem
+runServer s = let serviceTime = s ^. servers . inProcess . L.to (maybe s (updateServiceTime s))
+                  updateQueue s' = s' ^. servers . inProcess . L.to (maybe (lookupQueue s') (const s'))
+               in serviceTime & updateQueue
 
 
---newtype Simuation a = Simulation { runSimulation :: [Entity a] }
+processEventCycle :: MonadState SimSystem m => (Integer, Maybe Entity) -> m ()
+processEventCycle (currTime, maybeEntity) = modify $ \simState ->
+  case maybeEntity of
+    Nothing -> simState & runServerCycle currTime
+    Just e ->
+      let arrivedEntity = servers %~ (queueEntity e)
+          countCustomers = stats . customerAmount %~ (+ 1)
+       in simState & arrivedEntity & countCustomers & runServerCycle currTime
+
+
+runServerCycle :: Integer -> SimSystem -> SimSystem
+runServerCycle currTime s =
+  let updateTime    = currentTime .~ currTime
+      queueS        = servers . inQueue . L.to (fromIntegral . Q.size)
+      queueL s' = s' & (stats. queueLengthSum) +~ (s' ^. queueS)
+      queueM s' = s' & stats . maxQueueLength %~ (max (s' ^. queueS))
+      updateStats = queueL . queueM
+   in s & updateTime & runServer & updateStats
+
+

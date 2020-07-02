@@ -1,4 +1,8 @@
 # Bank Simulation Challenge
+
+[![Build Status](https://travis-ci.org/jproyo/bank-simulation.svg?branch=master)](https://travis-ci.org/jproyo/bank-simulation.svg?branch=master)
+
+
 This project are divided into 2 parts:
 
 - `src`: Folder containing a Generic Simulation Library based on an Event Scheduling simulation model.

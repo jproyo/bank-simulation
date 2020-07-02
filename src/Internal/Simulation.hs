@@ -1,10 +1,14 @@
-module Internal.Simulation where
+module Internal.Simulation
+  ( executeSimulation
+  , SimSystem
+  , _stats
+  ) where
 
-import           Config
 import           Data.Default
 import qualified Data.PQueue.Min               as Q
 import           Data.Statistics.Distributions
 import           GHC.Show
+import           Internal.Config
 import           Lens.Micro                    as L
 import           Lens.Micro.TH
 import           Protolude                     as P
@@ -60,8 +64,10 @@ instance Eq Entity where
 instance Ord Entity where
   entA <= entB = entA ^. arrival <= entB ^. arrival
 
-generateEvents :: (TimeSeriesGen e Integer, TimeServiceGen b Integer, RandomGen g) => e -> b -> g -> [(Entity, g, g)]
-generateEvents serie service g = scanl acumm firstItem ([1 ..] :: [Integer])
+type WithEventGenerator e b g = (TimeSeriesGen e Integer, TimeServiceGen b Integer, RandomGen g)
+
+generateEvents :: WithEventGenerator e b g => e -> b -> g -> [Entity]
+generateEvents serie service g = map (flip (^.) _1) $ scanl acumm firstItem ([1 ..] :: [Integer])
  where
   firstItem =
     let (arrival', g' ) = genArrival serie g
@@ -171,7 +177,6 @@ run' = do
   liftIO newStdGen
     >>= processEvents
     .   zipWithDef [1 ..]
-    .   map (flip (^.) _1)
     .   generateEvents expDist betaDist
 
 

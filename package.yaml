@@ -69,11 +69,14 @@ library:
   source-dirs: src
 
   dependencies:
+    - aeson
     - data-default
     - microlens
     - microlens-th
+    - optparse-applicative
     - pqueue
     - random
+    - yaml
 
   exposed-modules:
     - Simulation
@@ -88,4 +91,5 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - bank-simulation
+    - optparse-applicative
 

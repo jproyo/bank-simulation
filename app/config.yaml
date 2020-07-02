@@ -1,8 +1,15 @@
-
 max_running_time_in_sec: 28800
 
-beta_distribution:
+yellow:
+  alpha: 2
+  beta: 5
+
+blue:
   alpha: 5
+  beta: 1
+
+red:
+  alpha: 2
   beta: 2
 
 exp_distribution:

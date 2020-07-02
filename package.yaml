@@ -73,10 +73,8 @@ library:
     - data-default
     - microlens
     - microlens-th
-    - optparse-applicative
     - pqueue
     - random
-    - yaml
 
   exposed-modules:
     - Simulation
@@ -90,6 +88,9 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - aeson
     - bank-simulation
     - optparse-applicative
+    - optparse-generic
+    - yaml
 

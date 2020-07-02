@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 38a63f106bb764d42141a94289c8e6ee87867acf9aba05967ce56a4bed911414
+-- hash: bb8520e95af0f4133c697cabf40994498098f5e254d68c911c9bc89678c49538
 
 name:           bank-simulation
 version:        0.1.0.0
@@ -38,11 +38,9 @@ library
     , data-default
     , microlens
     , microlens-th
-    , optparse-applicative
     , pqueue
     , protolude
     , random
-    , yaml
   default-language: Haskell2010
 
 executable bank-simulation
@@ -54,8 +52,11 @@ executable bank-simulation
   default-extensions: BangPatterns ConstraintKinds DataKinds DeriveFunctor DeriveFoldable DeriveTraversable DeriveGeneric DeriveLift DeriveAnyClass DerivingStrategies DerivingVia EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GeneralizedNewtypeDeriving GADTs LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PackageImports PartialTypeSignatures Rank2Types RankNTypes RecordWildCards RecordWildCards ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeOperators TypeFamilies
   ghc-options: -O3 -Wall -Werror -fno-warn-partial-type-signatures -fconstraint-solver-iterations=0 -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-unused-top-binds -fno-warn-deprecations -fno-warn-orphans -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      bank-simulation
+      aeson
+    , bank-simulation
     , base >=4.7 && <5
     , optparse-applicative
+    , optparse-generic
     , protolude
+    , yaml
   default-language: Haskell2010
